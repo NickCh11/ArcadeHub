@@ -1,0 +1,16 @@
+# Claude / AI tooling
+.claude/
+.agents/
+.mcp.json
+skills-lock.json
+CLAUDE.md
+
+# Screenshots
+temporary screenshots/
+
+# Node
+node_modules/
+
+# Env
+.env
+*.log
