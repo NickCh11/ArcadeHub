@@ -1,5 +1,6 @@
 # ArcadeHub
 
+> **Live Demo:** https://arcade-hub-woad.vercel.app/
 > **Repository:** https://github.com/NickCh11/ArcadeHub
 
 A dark-themed multiplayer gaming platform built with vanilla HTML, Tailwind CSS, and Supabase. Players can register, authenticate via Google OAuth, and browse upcoming game categories — with full multiplayer support on the roadmap.
