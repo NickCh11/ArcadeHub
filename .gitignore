@@ -15,6 +15,9 @@ dist/
 .next/
 out/
 
+# Local dev utilities
+screenshot.mjs
+
 # Env
 .env
 *.env.*
