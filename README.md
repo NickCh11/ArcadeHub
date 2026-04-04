@@ -2,19 +2,19 @@
 
 > **Repository:** https://github.com/NickCh11/ArcadeHub
 
-A dark-themed gaming platform with end-to-end encrypted chat for private rooms and direct messages, designed so the server never sees plaintext.
+A dark-themed gaming platform with public chat rooms and end-to-end encrypted direct messages.
 
 ## Features
 
-- **E2E Encrypted Group Chat** - AES-256-GCM symmetric encryption with RSA-OAEP key wrapping. When a new member joins, an online existing member wraps the current group key for them, so historical messages remain readable.
-- **E2E Encrypted DMs** - Per-message forward secrecy via ephemeral ECDH P-256, HKDF, and AES-256-GCM.
-- **Floating Chat Overlay** - Chat opens as a draggable floating window over any page instead of taking over the whole screen.
-- **Overlay-First Frontend** - The floating overlays are the only supported chat UI. Legacy full-page chat routes have been removed from the repo.
-- **Replay Attack Protection** - Every message carries a UUID tracked in Redis with a 24h TTL.
-- **Rate Limiting** - Group messages are limited to 100/min per user, and room join requests to 3/min per user.
-- **Crypto Keys in Browser Only** - Private keys are generated locally and stored in IndexedDB as non-exportable `CryptoKey` objects.
-- **Real-time Presence** - Socket.IO and Redis track online, away, and offline status.
-- **Authentication** - Supabase Auth supports email/password and Google OAuth.
+- **Public Chat Rooms** - Create and join public channels. Messages are delivered in real-time via Socket.IO. Any authenticated user can create a room.
+- **Live Members Panel** - See who's currently in a room, grouped by online / away / offline status. Updates instantly on join and leave.
+- **E2E Encrypted DMs** - Per-message forward secrecy via ephemeral ECDH P-256, HKDF, and AES-256-GCM. The server never sees plaintext.
+- **Floating Chat Overlays** - Chat and DMs open as draggable floating windows over any page.
+- **Replay Attack Protection** - Every message carries a UUID tracked in Redis with a 24h TTL plus a 5-minute timestamp window.
+- **Rate Limiting** - Messages are limited per user via Redis-based counters.
+- **Crypto Keys in Browser Only** - ECDH private keys are generated locally and stored in IndexedDB as non-exportable `CryptoKey` objects. Never transmitted.
+- **Real-time Presence** - Socket.IO and Redis track online, away, and offline status across all users.
+- **Authentication** - Supabase Auth with email/password and Google OAuth.
 
 ## Tech Stack
 
@@ -23,7 +23,7 @@ A dark-themed gaming platform with end-to-end encrypted chat for private rooms a
 | Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 |
 | Backend | Node.js, Express, Socket.IO |
 | Real-time / Cache | Redis (ioredis) |
-| Database / Auth | Supabase (PostgreSQL, Auth, Storage) |
+| Database / Auth | Supabase (PostgreSQL, Auth) |
 | Cryptography | Web Crypto API (browser-side only) |
 | Fonts | Syne (display), DM Sans (body) |
 
@@ -31,53 +31,50 @@ A dark-themed gaming platform with end-to-end encrypted chat for private rooms a
 
 ```text
 arcadehub/
-|-- frontend/                   # Next.js 16 App Router
-|   |-- app/
-|   |   |-- page.tsx            # Home / landing
-|   |   |-- (auth)/             # login, signup
-|   |   `-- layout.tsx          # Mounts global floating chat + DM overlays
-|   |-- components/             # Sidebar, overlay chat UI, shared UI
-|   |-- hooks/                  # useSocket, useGroupChat, useDirectMessage
-|   `-- lib/
-|       |-- crypto/             # groupChat.ts, directMessage.ts, keyStorage.ts
-|       |-- socket.ts           # Socket.IO client singleton
-|       `-- supabase.ts         # Supabase browser client
-|-- backend/                    # Node.js + Express + Socket.IO
-|   `-- src/
-|       |-- socket/             # groupChat.ts, directMessage.ts handlers
-|       |-- routes/             # /api/rooms, /api/users, /api/dm
-|       |-- redis/              # client.ts, presence.ts
-|       `-- db/                 # Supabase queries (messages, rooms, users)
-|-- shared/types/               # Shared TS interfaces (events, messages)
-|-- docker-compose.yml          # Redis service
-`-- screenshot.mjs              # Puppeteer screenshot utility
+├── frontend/                   # Next.js 16 App Router
+│   ├── app/
+│   │   ├── page.tsx            # Home / landing
+│   │   ├── (auth)/             # login, signup
+│   │   └── layout.tsx          # Mounts global chat + DM overlays
+│   ├── components/
+│   │   ├── chat/               # ChatOverlay, DMOverlay, overlays context
+│   │   └── layout/             # Sidebar, NavUserButton
+│   ├── hooks/                  # useSocket, useDirectMessage
+│   └── lib/
+│       ├── crypto/             # directMessage.ts, keyStorage.ts
+│       ├── socket.ts           # Socket.IO client singleton
+│       └── supabase.ts         # Supabase browser client
+├── backend/
+│   └── src/
+│       ├── socket/             # groupChat.ts, directMessage.ts handlers
+│       ├── routes/             # /api/rooms, /api/users, /api/dm
+│       ├── redis/              # client.ts, presence.ts
+│       └── db/                 # Supabase queries (messages, rooms, users)
+├── shared/types/               # Shared TS interfaces (events, messages, permissions)
+├── docker-compose.yml          # Redis service
+└── screenshot.mjs              # Puppeteer screenshot utility
 ```
 
 ## Frontend Architecture
 
-- The canonical chat experience is overlay-based.
-- `frontend/app/layout.tsx` mounts `ChatOverlay` and `DMOverlay` globally.
-- `frontend/components/chat/ChatOverlay.tsx` handles rooms and room invites.
-- `frontend/components/chat/DMOverlay.tsx` handles direct messages.
-- Legacy full-page chat routes under `frontend/app/chat/**` were removed to avoid duplicate UI paths.
+- `frontend/app/layout.tsx` mounts `ChatOverlay` and `DMOverlay` globally via `OverlayProviders`.
+- `ChatOverlay` — three-column layout: channels list · message bubbles · live members panel.
+- `DMOverlay` — E2E encrypted 1-on-1 conversations.
+- Both overlays are draggable, minimizable floating windows.
 
 ## Crypto Design
 
-### Group Chat
+### DMs
 
-1. On room creation, an `AES-256-GCM` group key is generated client-side.
-2. The group key is RSA-wrapped with each member's public key and stored server-side.
-3. On join, an online existing member wraps the current group key for the new member. No new group key is generated.
-4. Membership is tracked in `chatroom_members.wrapped_group_key`.
-5. The server stores ciphertext, nonce, sender metadata, room metadata, and timestamps only.
-
-### Private DMs
-
-1. Each user has a static `ECDH P-256` key pair.
+1. Each user has a static `ECDH P-256` key pair stored in IndexedDB. The public key is uploaded to the server on first login.
 2. Each message uses a fresh ephemeral `ECDH P-256` key pair.
-3. Shared secrets are derived with ECDH, expanded with HKDF, and used with `AES-256-GCM`.
+3. Shared secrets are derived with ECDH, expanded with HKDF, and encrypted with `AES-256-GCM`.
 4. The ephemeral private key is discarded immediately after encryption.
-5. The server stores ciphertext for recipient and sender plus the ephemeral public key.
+5. The server stores ciphertext (for recipient and sender) plus the ephemeral public key only.
+
+### Public Rooms
+
+Messages are plaintext — no encryption. Security properties are replay protection, rate limiting, and timestamp freshness checks.
 
 ## Getting Started
 
@@ -124,35 +121,24 @@ npm run dev
 - Backend: `http://localhost:4000`
 - Frontend: `http://localhost:3000`
 
-### Screenshot
-
-```bash
-node screenshot.mjs http://localhost:3000
-```
-
-Screenshots are saved to `./temporary screenshots/`.
-
 ## Database Schema
 
 | Table | Purpose |
 |---|---|
-| `profiles` | User profiles and uploaded public keys |
-| `chatrooms` | Group chat rooms |
-| `chatroom_members` | Room membership and wrapped group keys |
-| `group_messages` | Private room ciphertext or public room plaintext |
-| `direct_messages` | Encrypted DMs |
-| `key_rotation_events` | Key wrap / rotation workflow tracking |
-| `room_invites` | Invite workflow for private rooms |
+| `profiles` | User profiles, ECDH public key, role, status |
+| `chatrooms` | Public chat rooms |
+| `group_messages` | Plaintext messages for public rooms |
+| `direct_messages` | E2E encrypted DMs |
 
 ## Security Properties
 
 | Threat | Mitigation |
 |---|---|
-| Server reads messages | All crypto happens client-side |
-| Replay attacks | Redis replay tracking plus timestamp freshness checks |
-| Message tampering | AES-GCM authentication and additional authenticated data |
-| Past session compromise | Ephemeral keys for DMs |
-| Rate abuse | Redis-based per-user limits |
+| Server reads DMs | All DM crypto happens client-side; server only stores ciphertext |
+| Replay attacks | Redis UUID tracking + timestamp freshness window |
+| Message tampering | AES-GCM authentication tag |
+| Past session compromise | Ephemeral keys per DM message |
+| Rate abuse | Redis-based per-user message limits |
 | Public key upload abuse | Base64 and byte-length validation |
 
 ## Roadmap
@@ -161,7 +147,7 @@ Screenshots are saved to `./temporary screenshots/`.
 - [ ] Message reactions
 - [ ] Leaderboards and player stats
 - [ ] Real-time multiplayer game rooms
-- [ ] Friend system and invites
+- [ ] Friend system
 - [ ] Mobile PWA
 
 ## License
