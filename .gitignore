@@ -3,7 +3,6 @@
 .agents/
 .mcp.json
 skills-lock.json
-CLAUDE.md
 
 # Screenshots
 temporary screenshots/
@@ -11,6 +10,12 @@ temporary screenshots/
 # Node
 node_modules/
 
+# Build output
+dist/
+.next/
+out/
+
 # Env
 .env
+*.env.*
 *.log
