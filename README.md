@@ -1,6 +1,7 @@
 # ArcadeHub
 
 > **Repository:** https://github.com/NickCh11/ArcadeHub
+> **Live Deployment:** https://scintillating-determination-production-ec9e.up.railway.app/
 
 A dark-themed gaming platform with public chat rooms and end-to-end encrypted direct messages.
 
