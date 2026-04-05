@@ -19,6 +19,6 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 RUN npm run build
 
-EXPOSE 8080
+EXPOSE 3000
 
-CMD ["sh", "-c", "npm start -- --hostname 0.0.0.0 --port ${PORT:-3000}"]
+CMD ["npm", "start", "--", "--hostname", "0.0.0.0", "--port", "3000"]
