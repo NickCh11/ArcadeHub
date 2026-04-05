@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { connectSocket } from '@/lib/socket';
 import { useChatOverlay } from './ChatOverlayContext';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { getBackendUrl } from '@/lib/publicUrl';
 import { SOCKET_EVENTS } from '@/types/events';
 import type { Socket } from 'socket.io-client';
 import type {
@@ -13,7 +14,7 @@ import type {
   PresenceUpdatePayload,
 } from '@/types/events';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = getBackendUrl();
 const WINDOW_W = 980;
 const WINDOW_H = 580;
 const TITLEBAR_H = 46;
@@ -22,6 +23,10 @@ const MEMBERS_W = 152;
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function canDeleteRooms(role: string | null | undefined) {
+  return role === 'admin' || role === 'moderator';
 }
 
 interface Room {
@@ -433,12 +438,15 @@ export function ChatOverlay() {
   const [creating, setCreating] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [minimized, setMinimized] = useState(false);
   const [pos, setPos] = useState({ x: -1, y: -1 });
   const posInitialized = useRef(false);
   const dragStart = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
 
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId) ?? null;
+  const canManageRooms = canDeleteRooms(profile.role);
 
   useEffect(() => {
     if (isOpen && !posInitialized.current) {
@@ -505,6 +513,34 @@ export function ChatOverlay() {
       setCreating(false);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Error');
+    }
+  }
+
+  async function handleDeleteRoom(roomId: string) {
+    if (!token || !canManageRooms || deletingRoomId) return;
+
+    const roomToDelete = rooms.find((room) => room.id === roomId);
+    const confirmed = window.confirm(`Delete #${roomToDelete?.name ?? 'this room'}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeleteError(null);
+    setDeletingRoomId(roomId);
+
+    try {
+      const res = await fetch(`${BACKEND}/api/rooms/${roomId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? 'Could not delete room');
+
+      const fallbackRoomId = rooms.find((room) => room.id !== roomId)?.id ?? null;
+      setRooms((prev) => prev.filter((room) => room.id !== roomId));
+      setSelectedRoomId((current) => current === roomId ? fallbackRoomId : current);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete room');
+    } finally {
+      setDeletingRoomId(null);
     }
   }
 
@@ -617,24 +653,61 @@ export function ChatOverlay() {
                 </div>
               </form>
             )}
+            {deleteError && (
+              <div style={{ fontSize: 10, color: '#f87171', padding: '0 12px 8px', lineHeight: 1.4 }}>
+                {deleteError}
+              </div>
+            )}
             <div style={{ flex: 1, overflowY: 'auto', padding: '2px 6px' }}>
               {rooms.length === 0 && !creating && (
                 <p style={{ fontSize: 11, color: '#5a5a80', padding: '12px 8px', lineHeight: 1.6 }}>No rooms yet. Create one!</p>
               )}
               {rooms.map((room) => {
                 const isActive = selectedRoomId === room.id;
+                const isDeleting = deletingRoomId === room.id;
                 return (
-                  <button key={room.id} onClick={() => setSelectedRoomId(room.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', padding: '6px 8px', borderRadius: 8, border: 'none', cursor: 'pointer', textAlign: 'left', marginBottom: 1, background: isActive ? 'rgba(139,92,246,0.14)' : 'transparent', position: 'relative' }}
-                    onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.07)'; }}
-                    onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                  >
-                    {isActive && <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 18, borderRadius: 2, background: '#8b5cf6' }} />}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: isActive ? '#7c6fa0' : '#4a4a6a' }}>#</span>
-                    <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? '#f1f0ff' : '#9d9db8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {room.name}
-                    </span>
-                  </button>
+                  <div key={room.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 1 }}>
+                    <button onClick={() => setSelectedRoomId(room.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8, border: 'none', cursor: 'pointer', textAlign: 'left', background: isActive ? 'rgba(139,92,246,0.14)' : 'transparent', position: 'relative' }}
+                      onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,0.07)'; }}
+                      onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >
+                      {isActive && <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 3, height: 18, borderRadius: 2, background: '#8b5cf6' }} />}
+                      <span style={{ fontSize: 13, fontWeight: 600, color: isActive ? '#7c6fa0' : '#4a4a6a' }}>#</span>
+                      <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? '#f1f0ff' : '#9d9db8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {room.name}
+                      </span>
+                    </button>
+                    {canManageRooms && (
+                      <button
+                        type="button"
+                        title={isDeleting ? 'Deleting room...' : `Delete #${room.name}`}
+                        disabled={isDeleting}
+                        onClick={() => void handleDeleteRoom(room.id)}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 6,
+                          border: 'none',
+                          flexShrink: 0,
+                          cursor: isDeleting ? 'wait' : 'pointer',
+                          background: isActive ? 'rgba(239,68,68,0.16)' : 'rgba(239,68,68,0.1)',
+                          color: '#f87171',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: isDeleting ? 0.7 : 1,
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4h8v2" />
+                          <path d="M19 6l-1 14H6L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
