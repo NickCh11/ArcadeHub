@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "npm run build && node dist/index.js",
-    "prebuild": "node -e \"const fs=require('fs');fs.rmSync('./src/_shared',{recursive:true,force:true});fs.cpSync('../shared','./src/_shared',{recursive:true})\"",
     "build": "tsc",
     "start": "node dist/index.js"
   },

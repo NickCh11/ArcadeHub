@@ -1,7 +1,7 @@
 import type { Server } from 'socket.io';
 import type { AuthenticatedSocket } from '../types';
-import { SOCKET_EVENTS } from '../_shared/types/events';
-import type { SendDMPayload, MarkReadPayload } from '../_shared/types/events';
+import { SOCKET_EVENTS } from '../types/events';
+import type { SendDMPayload, MarkReadPayload } from '../types/events';
 import { saveDMMessage } from '../db/messages';
 import { checkRateLimit, checkReplayAttack } from '../middleware/rateLimit';
 

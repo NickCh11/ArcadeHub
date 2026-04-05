@@ -1,11 +1,11 @@
 import type { Server } from 'socket.io';
 import type { AuthenticatedSocket } from '../types';
-import { SOCKET_EVENTS } from '../_shared/types/events';
+import { SOCKET_EVENTS } from '../types/events';
 import type {
   JoinRoomPayload,
   LeaveRoomPayload,
   SendPublicMessagePayload,
-} from '../_shared/types/events';
+} from '../types/events';
 import { saveGroupMessage } from '../db/messages';
 import { checkRateLimit, checkReplayAttack } from '../middleware/rateLimit';
 
