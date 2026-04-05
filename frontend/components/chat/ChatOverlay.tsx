@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { connectSocket } from '@/lib/socket';
 import { useChatOverlay } from './ChatOverlayContext';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { SOCKET_EVENTS } from '../../../shared/types/events';
+import { SOCKET_EVENTS } from '@/types/events';
 import type { Socket } from 'socket.io-client';
 import type {
   NewPublicMessagePayload,
   UserJoinedRoomPayload,
   UserLeftRoomPayload,
   PresenceUpdatePayload,
-} from '../../../shared/types/events';
+} from '@/types/events';
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 const WINDOW_W = 980;

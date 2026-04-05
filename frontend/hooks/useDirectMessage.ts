@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
-import { SOCKET_EVENTS } from '../../shared/types/events';
-import type { NewDMPayload } from '../../shared/types/events';
+import { SOCKET_EVENTS } from '@/types/events';
+import type { NewDMPayload } from '@/types/events';
 import type { DecryptedMessage, RawDMMessage } from '@/types';
 import {
   encryptDM,

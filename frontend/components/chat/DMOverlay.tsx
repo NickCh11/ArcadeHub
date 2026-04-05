@@ -6,10 +6,10 @@ import { connectSocket } from '@/lib/socket';
 import { useDMOverlay } from './DMOverlayContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useDirectMessage } from '@/hooks/useDirectMessage';
-import { SOCKET_EVENTS } from '../../../shared/types/events';
+import { SOCKET_EVENTS } from '@/types/events';
 import type { Socket } from 'socket.io-client';
 import type { UserProfile } from '@/types';
-import type { NewDMPayload } from '../../../shared/types/events';
+import type { NewDMPayload } from '@/types/events';
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 const WINDOW_W = 760;

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { connectSocket } from '@/lib/socket';
-import { SOCKET_EVENTS } from '../../../shared/types/events';
+import { SOCKET_EVENTS } from '@/types/events';
 import { StatusPicker, getPresenceMeta, type PresenceStatus } from '@/components/presence/StatusPicker';
 import { useAuth } from '@/components/auth/AuthProvider';
 
