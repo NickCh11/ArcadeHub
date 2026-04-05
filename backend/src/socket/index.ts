@@ -4,7 +4,7 @@ import type { AuthenticatedSocket } from '../types';
 import { setPresence, refreshPresence, type PresenceStatus } from '../redis/presence';
 import { registerGroupChatHandlers } from './groupChat';
 import { registerDMHandlers } from './directMessage';
-import { SOCKET_EVENTS } from '../../../shared/types/events';
+import { SOCKET_EVENTS } from '../_shared/types/events';
 import { setIo } from './ioInstance';
 import { setUserStatus } from '../db/users';
 

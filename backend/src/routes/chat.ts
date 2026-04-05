@@ -9,8 +9,8 @@ import {
 } from '../db/rooms';
 import { getGroupMessages, getDMMessages } from '../db/messages';
 import { getIo } from '../socket/ioInstance';
-import { SOCKET_EVENTS } from '../../../shared/types/events';
-import { hasPermission, normalizeRole } from '../../../shared/types/permissions';
+import { SOCKET_EVENTS } from '../_shared/types/events';
+import { hasPermission, normalizeRole } from '../_shared/types/permissions';
 import { getPresenceBulk } from '../redis/presence';
 import type { AuthenticatedUser } from '../types';
 

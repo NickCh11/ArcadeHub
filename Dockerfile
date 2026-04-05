@@ -13,4 +13,4 @@ RUN npm run build
 WORKDIR /app
 EXPOSE 4000
 
-CMD ["node", "backend/dist/backend/src/index.js"]
+CMD ["node", "backend/dist/index.js"]

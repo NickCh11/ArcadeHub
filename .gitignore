@@ -15,6 +15,9 @@ dist/
 .next/
 out/
 
+# Copied shared types (generated during build)
+backend/src/_shared/
+
 # Local dev utilities
 screenshot.mjs
 
