@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
-import { getPublicKey, setPublicKeys, searchUsers, getUserProfile, setUserStatus } from '../db/users';
+import { getPublicKey, setPublicKeys, searchUsers, getUserProfile, setUserStatus, updateUserProfile } from '../db/users';
 import type { PresenceStatus } from '../redis/presence';
 
 const router = Router();
@@ -65,6 +65,51 @@ router.put('/users/me/status', authMiddleware, async (req, res) => {
     await setUserStatus(req.user!.id, status);
     res.json({ success: true, status });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update own profile (username, bio, avatarUrl)
+router.put('/users/me/profile', authMiddleware, async (req, res) => {
+  const { username, bio, avatarUrl } = req.body as {
+    username?: string;
+    bio?: string;
+    avatarUrl?: string;
+  };
+
+  if (username !== undefined) {
+    if (typeof username !== 'string' || username.trim().length < 2 || username.trim().length > 32) {
+      res.status(400).json({ error: 'Username must be between 2 and 32 characters' });
+      return;
+    }
+    if (!/^[a-zA-Z0-9_\-]+$/.test(username.trim())) {
+      res.status(400).json({ error: 'Username can only contain letters, numbers, underscores and hyphens' });
+      return;
+    }
+  }
+
+  if (bio !== undefined && typeof bio === 'string' && bio.length > 200) {
+    res.status(400).json({ error: 'Bio must be 200 characters or less' });
+    return;
+  }
+
+  try {
+    await updateUserProfile(req.user!.id, {
+      username: username?.trim(),
+      bio: bio?.trim(),
+      avatarUrl,
+    });
+    const profile = await getUserProfile(req.user!.id);
+    res.json(profile);
+  } catch (err: any) {
+    if (err.code === 'USERNAME_COOLDOWN') {
+      res.status(429).json({ error: err.message, nextAllowed: err.nextAllowed });
+      return;
+    }
+    if (err.code === '23505') {
+      res.status(409).json({ error: 'That username is already taken' });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });

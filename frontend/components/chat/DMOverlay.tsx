@@ -5,13 +5,15 @@ import { createClient } from '@/lib/supabase';
 import { connectSocket } from '@/lib/socket';
 import { useDMOverlay } from './DMOverlayContext';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useWindowSize } from '@/hooks/useWindowSize';
 import { useDirectMessage } from '@/hooks/useDirectMessage';
+import { getBackendUrl } from '@/lib/publicUrl';
 import { SOCKET_EVENTS } from '@/types/events';
 import type { Socket } from 'socket.io-client';
 import type { UserProfile } from '@/types';
 import type { NewDMPayload } from '@/types/events';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = getBackendUrl();
 const WINDOW_W = 760;
 const WINDOW_H = 540;
 const TITLEBAR_H = 46;
@@ -82,6 +84,9 @@ function DMView({ socket, myUserId, otherUserId, token, myUsername, otherUser }:
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: '#f1f0ff' }}>
               {otherUser?.username || 'Loading…'}
+              {otherUser?.user_tag && (
+                <span style={{ color: '#5a5a80', fontWeight: 400, fontSize: 12 }}>#{otherUser.user_tag}</span>
+              )}
             </div>
             <div style={{ fontSize: 10, color: '#5a5a80' }}>
               {otherUser?.status === 'online' ? '● Online' : otherUser?.status === 'away' ? '● Away' : '● Offline'}
@@ -186,9 +191,17 @@ function EmptyState() {
 export function DMOverlay() {
   const { isOpen, close, open } = useDMOverlay();
   const { user, token, profile, resolved } = useAuth();
+  const { w: winW, h: winH } = useWindowSize();
 
   const userId = user?.id ?? null;
   const username = profile.username || '';
+
+  const isMobile = winW < 640;
+  const isTablet = winW >= 640 && winW < 1024;
+  const overlayW = isMobile ? winW : isTablet ? Math.min(WINDOW_W, winW - 32) : WINDOW_W;
+  const overlayH = isMobile ? winH : Math.min(WINDOW_H, winH - 80);
+  const sidebarW = isMobile ? Math.min(180, Math.floor(winW * 0.4)) : 220;
+
   const [socket, setSocket] = useState<Socket | null>(null);
 
   const [searchQ, setSearchQ] = useState('');
@@ -208,10 +221,16 @@ export function DMOverlay() {
     if (isOpen && !posInitialized.current) {
       const frame = window.requestAnimationFrame(() => {
         posInitialized.current = true;
-        setPos({
-          x: Math.max(0, Math.round((window.innerWidth - WINDOW_W) / 2)) + 80,
-          y: Math.max(0, Math.round((window.innerHeight - WINDOW_H) / 2)),
-        });
+        if (window.innerWidth < 640) {
+          setPos({ x: 0, y: 0 });
+        } else {
+          const w = Math.min(WINDOW_W, window.innerWidth - 32);
+          const h = Math.min(WINDOW_H, window.innerHeight - 80);
+          setPos({
+            x: Math.max(0, Math.round((window.innerWidth - w) / 2)) + 80,
+            y: Math.max(0, Math.round((window.innerHeight - h) / 2)),
+          });
+        }
       });
       return () => window.cancelAnimationFrame(frame);
     }
@@ -250,7 +269,7 @@ export function DMOverlay() {
       const supabase = createClient();
       const { data } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url, status')
+        .select('id, username, user_tag, avatar_url, status')
         .in('id', ids);
 
       if (!Array.isArray(data)) return;
@@ -306,7 +325,7 @@ export function DMOverlay() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url, status')
+        .select('id, username, user_tag, avatar_url, status')
         .eq('id', incomingUserId)
         .single();
 
@@ -336,12 +355,12 @@ export function DMOverlay() {
 
   // Drag
   function handleTitleMouseDown(e: React.MouseEvent) {
-    if ((e.target as HTMLElement).closest('button')) return;
+    if (isMobile || (e.target as HTMLElement).closest('button')) return;
     dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
     const onMove = (me: MouseEvent) => {
       if (!dragStart.current) return;
       setPos({
-        x: Math.max(0, Math.min(window.innerWidth - WINDOW_W, dragStart.current.px + me.clientX - dragStart.current.mx)),
+        x: Math.max(0, Math.min(window.innerWidth - overlayW, dragStart.current.px + me.clientX - dragStart.current.mx)),
         y: Math.max(0, Math.min(window.innerHeight - TITLEBAR_H, dragStart.current.py + me.clientY - dragStart.current.my)),
       });
     };
@@ -367,12 +386,12 @@ export function DMOverlay() {
   if (!resolved || !user || !token) return null;
   if (pos.x < 0) return <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9998 }} />;
 
-  const windowHeight = minimized ? TITLEBAR_H : WINDOW_H;
+  const windowHeight = minimized ? TITLEBAR_H : overlayH;
 
   return (
     <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, width: WINDOW_W, height: windowHeight, zIndex: 9998,
-      borderRadius: 16, overflow: 'hidden',
+      position: 'fixed', left: pos.x, top: pos.y, width: overlayW, height: windowHeight, zIndex: 9998,
+      borderRadius: isMobile ? 0 : 16, overflow: 'hidden',
       background: 'rgba(10,10,24,0.92)', backdropFilter: 'blur(28px)',
       border: '1px solid rgba(139,92,246,0.18)',
       boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.08)',
@@ -426,9 +445,9 @@ export function DMOverlay() {
       </div>
 
       {!minimized && (
-        <div style={{ display: 'flex', height: WINDOW_H - TITLEBAR_H }}>
+        <div style={{ display: 'flex', height: overlayH - TITLEBAR_H }}>
           {/* Left panel — conversations */}
-          <div style={{ width: 220, borderRight: '1px solid rgba(139,92,246,0.1)', display: 'flex', flexDirection: 'column', background: 'rgba(7,7,17,0.5)' }}>
+          <div style={{ width: sidebarW, borderRight: '1px solid rgba(139,92,246,0.1)', display: 'flex', flexDirection: 'column', background: 'rgba(7,7,17,0.5)', flexShrink: 0 }}>
             {/* Search */}
             <div style={{ padding: '10px 10px 6px' }}>
               <div style={{ position: 'relative' }}>
@@ -461,7 +480,12 @@ export function DMOverlay() {
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(139,92,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, color: '#a78bfa', flexShrink: 0 }}>
                       {u.username[0].toUpperCase()}
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#f1f0ff' }}>{u.username}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#f1f0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {u.username}
+                        {u.user_tag && <span style={{ color: '#5a5a80', fontWeight: 400 }}>#{u.user_tag}</span>}
+                      </div>
+                    </div>
                   </button>
                 ))}
               </div>

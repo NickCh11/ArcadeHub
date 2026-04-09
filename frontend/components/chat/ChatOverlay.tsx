@@ -6,6 +6,7 @@ import { useChatOverlay } from './ChatOverlayContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { getBackendUrl } from '@/lib/publicUrl';
 import { SOCKET_EVENTS } from '@/types/events';
+import { useWindowSize } from '@/hooks/useWindowSize';
 import type { Socket } from 'socket.io-client';
 import type {
   NewPublicMessagePayload,
@@ -120,9 +121,10 @@ interface RoomViewProps {
   userId: string;
   token: string;
   username: string;
+  showMembers?: boolean;
 }
 
-function RoomView({ socket, room, userId, token, username }: RoomViewProps) {
+function RoomView({ socket, room, userId, token, username, showMembers = true }: RoomViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
@@ -399,8 +401,7 @@ function RoomView({ socket, room, userId, token, username }: RoomViewProps) {
         </form>
       </div>
 
-      {/* Members panel */}
-      <MembersPanel members={members} />
+      {showMembers && <MembersPanel members={members} />}
     </div>
   );
 }
@@ -428,9 +429,18 @@ function EmptyState() {
 export function ChatOverlay() {
   const { isOpen, close, targetRoomId, clearTargetRoom } = useChatOverlay();
   const { user, token, profile, resolved } = useAuth();
+  const { w: winW, h: winH } = useWindowSize();
 
   const userId = user?.id ?? null;
   const username = profile.username || '';
+
+  const isMobile = winW < 640;
+  const isTablet = winW >= 640 && winW < 1024;
+
+  const overlayW = isMobile ? winW : isTablet ? Math.min(WINDOW_W, winW - 32) : WINDOW_W;
+  const overlayH = isMobile ? winH : Math.min(WINDOW_H, winH - 80);
+  const channelsW = isMobile ? Math.min(160, Math.floor(winW * 0.38)) : CHANNELS_W;
+  const showMembers = !isMobile;
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -452,10 +462,16 @@ export function ChatOverlay() {
     if (isOpen && !posInitialized.current) {
       const frame = window.requestAnimationFrame(() => {
         posInitialized.current = true;
-        setPos({
-          x: Math.max(0, Math.round((window.innerWidth - WINDOW_W) / 2)),
-          y: Math.max(0, Math.round((window.innerHeight - WINDOW_H) / 2)),
-        });
+        if (window.innerWidth < 640) {
+          setPos({ x: 0, y: 0 });
+        } else {
+          const w = Math.min(WINDOW_W, window.innerWidth - 32);
+          const h = Math.min(WINDOW_H, window.innerHeight - 80);
+          setPos({
+            x: Math.max(0, Math.round((window.innerWidth - w) / 2)),
+            y: Math.max(0, Math.round((window.innerHeight - h) / 2)),
+          });
+        }
       });
       return () => window.cancelAnimationFrame(frame);
     }
@@ -545,12 +561,12 @@ export function ChatOverlay() {
   }
 
   function handleTitleMouseDown(e: React.MouseEvent) {
-    if ((e.target as HTMLElement).closest('button')) return;
+    if (isMobile || (e.target as HTMLElement).closest('button')) return;
     dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
     const onMove = (me: MouseEvent) => {
       if (!dragStart.current) return;
       setPos({
-        x: Math.max(0, Math.min(window.innerWidth - WINDOW_W, dragStart.current.px + me.clientX - dragStart.current.mx)),
+        x: Math.max(0, Math.min(window.innerWidth - overlayW, dragStart.current.px + me.clientX - dragStart.current.mx)),
         y: Math.max(0, Math.min(window.innerHeight - TITLEBAR_H, dragStart.current.py + me.clientY - dragStart.current.my)),
       });
     };
@@ -562,12 +578,12 @@ export function ChatOverlay() {
   if (!resolved || !user || !token) return null;
   if (pos.x < 0) return <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9997 }} />;
 
-  const windowHeight = minimized ? TITLEBAR_H : WINDOW_H;
+  const windowHeight = minimized ? TITLEBAR_H : overlayH;
 
   return (
     <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, width: WINDOW_W, height: windowHeight, zIndex: 9997,
-      borderRadius: 16, overflow: 'hidden',
+      position: 'fixed', left: pos.x, top: pos.y, width: overlayW, height: windowHeight, zIndex: 9997,
+      borderRadius: isMobile ? 0 : 16, overflow: 'hidden',
       background: 'rgba(10,10,24,0.93)', backdropFilter: 'blur(28px)',
       border: '1px solid rgba(139,92,246,0.18)',
       boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.08)',
@@ -622,9 +638,9 @@ export function ChatOverlay() {
       </div>
 
       {!minimized && (
-        <div style={{ display: 'flex', height: WINDOW_H - TITLEBAR_H }}>
+        <div style={{ display: 'flex', height: overlayH - TITLEBAR_H }}>
           {/* Channels sidebar */}
-          <div style={{ width: CHANNELS_W, borderRight: '1px solid rgba(139,92,246,0.1)', display: 'flex', flexDirection: 'column', background: 'rgba(7,7,17,0.5)' }}>
+          <div style={{ width: channelsW, borderRight: '1px solid rgba(139,92,246,0.1)', display: 'flex', flexDirection: 'column', background: 'rgba(7,7,17,0.5)', flexShrink: 0 }}>
             <div style={{ padding: '10px 10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: '#5a5a80', letterSpacing: '0.07em', padding: '2px 4px' }}>CHANNELS</div>
               <button
@@ -716,7 +732,7 @@ export function ChatOverlay() {
           {/* Main area */}
           <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
             {selectedRoom && userId && token ? (
-              <RoomView key={selectedRoom.id} socket={socket} room={selectedRoom} userId={userId} token={token} username={username} />
+              <RoomView key={selectedRoom.id} socket={socket} room={selectedRoom} userId={userId} token={token} username={username} showMembers={showMembers} />
             ) : (
               <EmptyState />
             )}

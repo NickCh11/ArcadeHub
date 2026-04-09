@@ -7,9 +7,12 @@ import type { PresenceStatus } from '@/components/presence/StatusPicker';
 
 interface AuthProfile {
   username: string;
+  userTag: number | null;
   avatarUrl: string | null;
   status: PresenceStatus;
   role: string | null;
+  bio: string | null;
+  usernameChangedAt: string | null;
 }
 
 interface AuthContextValue {
@@ -22,9 +25,12 @@ interface AuthContextValue {
 
 const DEFAULT_PROFILE: AuthProfile = {
   username: '',
+  userTag: null,
   avatarUrl: null,
   status: 'online',
   role: null,
+  bio: null,
+  usernameChangedAt: null,
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -32,9 +38,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function getFallbackProfile(session: Session | null): AuthProfile {
   return {
     username: session?.user.user_metadata?.username ?? '',
+    userTag: null,
     avatarUrl: null,
     status: 'online',
     role: null,
+    bio: null,
+    usernameChangedAt: null,
   };
 }
 
@@ -59,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('profiles')
-      .select('username, avatar_url, status, role')
+      .select('username, user_tag, avatar_url, status, role, bio, username_changed_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -70,9 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setProfile({
       username: data?.username || session.user.user_metadata?.username || '',
+      userTag: data?.user_tag ?? null,
       avatarUrl: data?.avatar_url || null,
       status: (data?.status as PresenceStatus | null) ?? 'online',
       role: data?.role ?? null,
+      bio: data?.bio ?? null,
+      usernameChangedAt: data?.username_changed_at ?? null,
     });
   }, []);
 

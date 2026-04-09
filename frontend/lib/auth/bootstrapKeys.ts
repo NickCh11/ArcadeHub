@@ -2,8 +2,9 @@
 
 import { generateEcdhKeyPair, exportEcdhPublicKey } from '@/lib/crypto/directMessage';
 import { storeKey, hasKey, KEY_NAMES } from '@/lib/crypto/keyStorage';
+import { getBackendUrl } from '@/lib/publicUrl';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = getBackendUrl();
 
 export async function bootstrapUserKeys(userId: string, accessToken: string) {
   const hasPrivate = await hasKey(KEY_NAMES.ecdhPrivate(userId));

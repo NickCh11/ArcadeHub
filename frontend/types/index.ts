@@ -1,6 +1,7 @@
 export interface UserProfile {
   id: string;
   username: string;
+  user_tag?: number;
   display_name?: string;
   avatar_url?: string;
   status: 'online' | 'away' | 'offline';
