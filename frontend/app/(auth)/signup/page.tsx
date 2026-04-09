@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { bootstrapUserKeys } from '@/lib/auth/bootstrapKeys';
 import { getAuthCallbackUrl } from '@/lib/publicUrl';
+
+const RESEND_COOLDOWN = 60;
 
 export default function SignupPage() {
   const router = useRouter();
@@ -15,16 +17,61 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Verification pending state
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     const supabase = createClient();
-
     void supabase.auth.getSession().then((result: Awaited<ReturnType<typeof supabase.auth.getSession>>) => {
       const { data } = result;
-      if (data.session) {
-        router.replace('/');
-      }
+      if (data.session) router.replace('/');
     });
   }, [router]);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  function startCooldown() {
+    setCooldown(RESEND_COOLDOWN);
+    cooldownRef.current = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current!);
+          cooldownRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  async function handleResend() {
+    if (cooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setResendMessage('');
+    try {
+      const supabase = createClient();
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: pendingEmail,
+      });
+      if (resendError) throw resendError;
+      setResendMessage('Email sent! Check your inbox.');
+      startCooldown();
+    } catch (err: any) {
+      setResendMessage(err.message || 'Failed to resend. Try again.');
+    } finally {
+      setResendLoading(false);
+    }
+  }
 
   async function handleGoogleSignup() {
     setError('');
@@ -59,12 +106,13 @@ export default function SignupPage() {
       const user = data.user;
       const session = data.session;
 
-      if (!user) {
-        throw new Error('Signup did not return a user');
-      }
+      if (!user) throw new Error('Signup did not return a user');
 
       if (!session) {
-        router.replace('/login');
+        // Email confirmation required
+        setPendingEmail(email);
+        setPendingVerification(true);
+        startCooldown();
         return;
       }
 
@@ -80,6 +128,117 @@ export default function SignupPage() {
     }
   }
 
+  // ── Verification pending screen ──────────────────────────────────────────
+  if (pendingVerification) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#070711' }}>
+        <div className="fixed inset-0 pointer-events-none">
+          <div
+            className="animate-blob absolute rounded-full"
+            style={{ width: 600, height: 600, top: '10%', left: '25%', background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)' }}
+          />
+        </div>
+
+        <div className="glass-elevated rounded-2xl p-8 w-full max-w-md relative animate-fade-in text-center">
+          {/* Envelope icon */}
+          <div
+            className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-6"
+            style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(109,40,217,0.2))', border: '1px solid rgba(139,92,246,0.3)', boxShadow: '0 0 32px rgba(139,92,246,0.2)' }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="M2 7l10 7 10-7"/>
+            </svg>
+          </div>
+
+          <h1
+            style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: '#f1f0ff', letterSpacing: '-0.02em', marginBottom: 10 }}
+          >
+            Check your email
+          </h1>
+
+          <p style={{ color: '#9d9db8', fontSize: 14, lineHeight: 1.6, marginBottom: 6 }}>
+            We sent a verification link to
+          </p>
+          <p
+            style={{ color: '#8b5cf6', fontSize: 14, fontWeight: 600, marginBottom: 20, wordBreak: 'break-all' }}
+          >
+            {pendingEmail}
+          </p>
+          <p style={{ color: '#5a5a80', fontSize: 13, lineHeight: 1.6, marginBottom: 28 }}>
+            Click the link in the email to activate your account. Check your spam folder if you don&apos;t see it.
+          </p>
+
+          {/* Resend section */}
+          <div
+            className="rounded-xl p-4 mb-4"
+            style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)' }}
+          >
+            <p style={{ color: '#9d9db8', fontSize: 13, marginBottom: 12 }}>
+              Didn&apos;t receive it?
+            </p>
+            <button
+              onClick={handleResend}
+              disabled={cooldown > 0 || resendLoading}
+              className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2"
+              style={{
+                background: cooldown > 0 ? 'rgba(139,92,246,0.08)' : 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+                color: cooldown > 0 ? '#5a5a80' : '#fff',
+                border: cooldown > 0 ? '1px solid rgba(139,92,246,0.2)' : 'none',
+                boxShadow: cooldown > 0 ? 'none' : '0 4px 16px rgba(139,92,246,0.3)',
+                cursor: cooldown > 0 ? 'not-allowed' : 'pointer',
+                transition: 'opacity 0.15s',
+              }}
+            >
+              {resendLoading ? (
+                <>
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                  </svg>
+                  Sending…
+                </>
+              ) : cooldown > 0 ? (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Resend in {cooldown}s
+                </>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+                  </svg>
+                  Resend verification email
+                </>
+              )}
+            </button>
+
+            {resendMessage && (
+              <p
+                className="mt-3 text-xs"
+                style={{
+                  color: resendMessage.startsWith('Email') ? '#34d399' : '#f87171',
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                {resendMessage}
+              </p>
+            )}
+          </div>
+
+          <p style={{ fontSize: 13, color: '#5a5a80' }}>
+            Already verified?{' '}
+            <Link href="/login" style={{ color: '#8b5cf6', fontWeight: 600 }}>Sign in</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Registration form ────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#070711' }}>
       <div className="fixed inset-0 pointer-events-none">
