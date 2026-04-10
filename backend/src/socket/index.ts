@@ -1,51 +1,16 @@
 import type { Server } from 'socket.io';
-import { createClient } from '@supabase/supabase-js';
 import type { AuthenticatedSocket } from '../types';
-import { setPresence, refreshPresence, type PresenceStatus } from '../redis/presence';
+import { setPresence, refreshPresence } from '../redis/presence';
 import { registerGroupChatHandlers } from './groupChat';
 import { registerDMHandlers } from './directMessage';
 import { SOCKET_EVENTS } from '../types/events';
 import { setIo } from './ioInstance';
 import { setUserStatus } from '../db/users';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+import { createSocketAuthMiddleware } from '../middleware/socketAuth';
 
 export function initSocket(io: Server): void {
   setIo(io);
-  // JWT auth middleware for Socket.IO connections
-  io.use(async (socket, next) => {
-    const token = socket.handshake.auth?.token as string | undefined;
-    if (!token) {
-      return next(new Error('Authentication required'));
-    }
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) {
-      return next(new Error('Invalid token'));
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('username, avatar_url, status')
-      .eq('id', user.id)
-      .single();
-
-    const selectedStatus = ((profile?.status as PresenceStatus | null) ?? 'online');
-
-    (socket as AuthenticatedSocket).user = {
-      id: user.id,
-      email: user.email!,
-      username: profile?.username || user.email!.split('@')[0],
-      avatarUrl: profile?.avatar_url,
-      status: selectedStatus,
-    };
-    socket.data.user = (socket as AuthenticatedSocket).user;
-
-    next();
-  });
+  io.use(createSocketAuthMiddleware());
 
   io.on('connection', async (socket) => {
     const authedSocket = socket as AuthenticatedSocket;

@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { initSocket } from './socket';
+import { initBilliardsNamespace } from './socket/billiards';
 import authRouter from './routes/auth';
 import chatRouter from './routes/chat';
 import usersRouter from './routes/users';
@@ -25,6 +26,7 @@ const io = new Server(httpServer, {
 });
 
 initSocket(io);
+initBilliardsNamespace(io);
 
 // ─── Express Middleware ───────────────────────────────────────────────────────
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));

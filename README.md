@@ -1,93 +1,95 @@
 # ArcadeHub
 
-> **Repository:** https://github.com/NickCh11/ArcadeHub
-> **Live Deployment:** https://scintillating-determination-production-ec9e.up.railway.app/
+> Repository: https://github.com/NickCh11/ArcadeHub
+> Live Deployment: https://scintillating-determination-production-ec9e.up.railway.app/
 
-A dark-themed gaming platform with public chat rooms and end-to-end encrypted direct messages.
+A dark-themed gaming platform with public chat rooms, end-to-end encrypted direct messages, and real-time multiplayer billiards.
 
 ## Features
 
-- **Public Chat Rooms** - Create and join public channels. Messages are delivered in real-time via Socket.IO. Any authenticated user can create a room.
-- **Live Members Panel** - See who's currently in a room, grouped by online / away / offline status. Updates instantly on join and leave.
-- **E2E Encrypted DMs** - Per-message forward secrecy via ephemeral ECDH P-256, HKDF, and AES-256-GCM. The server never sees plaintext.
-- **Floating Chat Overlays** - Chat and DMs open as draggable floating windows over any page.
-- **Replay Attack Protection** - Every message carries a UUID tracked in Redis with a 24h TTL plus a 5-minute timestamp window.
-- **Rate Limiting** - Messages are limited per user via Redis-based counters.
-- **Crypto Keys in Browser Only** - ECDH private keys are generated locally and stored in IndexedDB as non-exportable `CryptoKey` objects. Never transmitted.
-- **Real-time Presence** - Socket.IO and Redis track online, away, and offline status across all users.
-- **Authentication** - Supabase Auth with email/password and Google OAuth.
+- Public Chat Rooms: Create and join public channels with live messages over Socket.IO.
+- Live Members Panel: See room members grouped by online, away, and offline status in real time.
+- E2E Encrypted DMs: Direct messages use browser-side crypto so the server never sees plaintext.
+- Floating Chat Overlays: Public chat and DMs open as draggable floating windows.
+- Real-time Presence: Socket.IO and Redis track online state across users.
+- Authentication: Supabase Auth with email/password and Google OAuth.
+- Multiplayer Billiards: Two-player 8-ball lobbies with synchronized game state.
+- Match Start / End Controls: Both players must press `START` before a match begins. Pressing `END`, closing the game, or disconnecting counts as a forfeit.
+- Game Logs: Billiards matches are stored with winner, loser, and end reason in the database.
+- Attached Game Chat: The billiards chat is docked to the game panel and closes automatically when the match ends or is cancelled.
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS v4 |
 | Backend | Node.js, Express, Socket.IO |
-| Real-time / Cache | Redis (ioredis) |
+| Real-time / Cache | Redis |
 | Database / Auth | Supabase (PostgreSQL, Auth) |
-| Cryptography | Web Crypto API (browser-side only) |
-| Fonts | Syne (display), DM Sans (body) |
+| Cryptography | Web Crypto API |
 
 ## Project Structure
 
 ```text
 arcadehub/
-├── frontend/                   # Next.js 16 App Router
-│   ├── app/
-│   │   ├── page.tsx            # Home / landing
-│   │   ├── (auth)/             # login, signup
-│   │   └── layout.tsx          # Mounts global chat + DM overlays
-│   ├── components/
-│   │   ├── chat/               # ChatOverlay, DMOverlay, overlays context
-│   │   └── layout/             # Sidebar, NavUserButton
-│   ├── hooks/                  # useSocket, useDirectMessage
-│   └── lib/
-│       ├── crypto/             # directMessage.ts, keyStorage.ts
-│       ├── socket.ts           # Socket.IO client singleton
-│       └── supabase.ts         # Supabase browser client
-├── backend/
-│   └── src/
-│       ├── socket/             # groupChat.ts, directMessage.ts handlers
-│       ├── routes/             # /api/rooms, /api/users, /api/dm
-│       ├── redis/              # client.ts, presence.ts
-│       └── db/                 # Supabase queries (messages, rooms, users)
-├── shared/types/               # Shared TS interfaces (events, messages, permissions)
-├── docker-compose.yml          # Redis service
-└── screenshot.mjs              # Puppeteer screenshot utility
+|- frontend/                 # Next.js app
+|  |- app/                   # app router pages and layout
+|  |- components/            # chat, games, profile, layout UI
+|  |- hooks/                 # custom React hooks
+|  `- lib/                   # socket, supabase, crypto helpers
+|- backend/
+|  `- src/
+|     |- db/                 # Supabase queries including game logs
+|     |- middleware/         # auth and socket middleware
+|     |- redis/              # Redis presence and client helpers
+|     |- routes/             # REST API routes
+|     `- socket/             # chat, DM, and billiards socket handlers
+|- shared/types/             # shared TypeScript contracts
+|- games/                    # legacy / standalone game code
+`- docker-compose.yml        # local Redis service
 ```
 
 ## Frontend Architecture
 
-- `frontend/app/layout.tsx` mounts `ChatOverlay` and `DMOverlay` globally via `OverlayProviders`.
-- `ChatOverlay` — three-column layout: channels list · message bubbles · live members panel.
-- `DMOverlay` — E2E encrypted 1-on-1 conversations.
-- Both overlays are draggable, minimizable floating windows.
+- `frontend/app/layout.tsx` mounts the overlay providers globally.
+- `frontend/components/chat/` contains the public chat and DM overlays.
+- `frontend/components/games/` contains the billiards lobby flow, attached game chat, and in-match UI.
+- The billiards game panel and game chat move together as one attached window.
+
+## Billiards Flow
+
+1. A player creates or joins an `8-Ball Pool` lobby.
+2. Both players must press `START` before the match begins.
+3. When the match starts, a `game_logs` row is created for the session.
+4. A normal win finalizes the log with `end_reason = win`.
+5. Pressing `END`, closing the game window, or disconnecting finalizes the log with `end_reason = forfeit`.
+6. The attached game chat closes automatically when the match ends or the lobby is cancelled.
 
 ## Crypto Design
 
 ### DMs
 
-1. Each user has a static `ECDH P-256` key pair stored in IndexedDB. The public key is uploaded to the server on first login.
+1. Each user has a static `ECDH P-256` key pair stored in IndexedDB.
 2. Each message uses a fresh ephemeral `ECDH P-256` key pair.
 3. Shared secrets are derived with ECDH, expanded with HKDF, and encrypted with `AES-256-GCM`.
 4. The ephemeral private key is discarded immediately after encryption.
-5. The server stores ciphertext (for recipient and sender) plus the ephemeral public key only.
+5. The server stores ciphertext plus the ephemeral public key only.
 
 ### Public Rooms
 
-Messages are plaintext — no encryption. Security properties are replay protection, rate limiting, and timestamp freshness checks.
+Public room messages are plaintext. Protection focuses on replay protection, rate limiting, and timestamp freshness checks.
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Node.js 18+](https://nodejs.org/)
-- [Docker](https://www.docker.com/) for Redis
+- Node.js 18+
+- Docker for Redis
 - A Supabase project
 
 ### Environment Variables
 
-**`backend/.env`**
+`backend/.env`
 
 ```env
 PORT=4000
@@ -98,7 +100,7 @@ SUPABASE_JWT_SECRET=<jwt_secret>
 FRONTEND_URL=http://localhost:3000
 ```
 
-**`frontend/.env.local`**
+`frontend/.env.local`
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
@@ -115,7 +117,7 @@ docker-compose up -d
 # 2. Install all dependencies
 npm run install:all
 
-# 3. Start backend + frontend concurrently
+# 3. Start backend + frontend
 npm run dev
 ```
 
@@ -128,28 +130,28 @@ npm run dev
 |---|---|
 | `profiles` | User profiles, ECDH public key, role, status |
 | `chatrooms` | Public chat rooms |
-| `group_messages` | Plaintext messages for public rooms |
-| `direct_messages` | E2E encrypted DMs |
+| `group_messages` | Plaintext room messages |
+| `direct_messages` | E2E encrypted direct messages |
+| `game_logs` | Multiplayer match sessions, result, and end reason |
 
 ## Security Properties
 
 | Threat | Mitigation |
 |---|---|
-| Server reads DMs | All DM crypto happens client-side; server only stores ciphertext |
-| Replay attacks | Redis UUID tracking + timestamp freshness window |
+| Server reads DMs | All DM crypto happens client-side |
+| Replay attacks | Redis UUID tracking plus timestamp freshness checks |
 | Message tampering | AES-GCM authentication tag |
 | Past session compromise | Ephemeral keys per DM message |
 | Rate abuse | Redis-based per-user message limits |
-| Public key upload abuse | Base64 and byte-length validation |
 
 ## Roadmap
 
-- [ ] File attachments
-- [ ] Message reactions
-- [ ] Leaderboards and player stats
-- [ ] Real-time multiplayer game rooms
-- [ ] Friend system
-- [ ] Mobile PWA
+- File attachments
+- Message reactions
+- Leaderboards and player stats
+- More real-time multiplayer game rooms
+- Friend system
+- Mobile PWA
 
 ## License
 
