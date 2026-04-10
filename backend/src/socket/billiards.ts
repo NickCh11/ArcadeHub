@@ -105,11 +105,15 @@ export function initBilliardsNamespace(io: Server): void {
 
   billiards.on('connection', (socket) => {
     const authed = socket as AuthenticatedSocket;
+    console.log(`[Billiards] Socket connected | user=${authed.user.username} socket=${socket.id}`);
 
     socket.emit('lobby:list', getOpenLobbies());
 
     socket.on('lobby:create', () => {
-      if (findLobbyForSocket(socket.id)) return;
+      if (findLobbyForSocket(socket.id)) {
+        console.log(`[Billiards] lobby:create ignored | already in lobby | user=${authed.user.username}`);
+        return;
+      }
 
       const lobbyNum = nextLobbyNum++;
       const lobby: BilliardsLobby = {
@@ -136,21 +140,26 @@ export function initBilliardsNamespace(io: Server): void {
 
     socket.on('lobby:join', ({ lobbyId }: { lobbyId: string }) => {
       const lobby = lobbies.get(lobbyId);
+      console.log(`[Billiards] lobby:join requested | lobby=${lobbyId} user=${authed.user.username}`);
 
       if (!lobby) {
         socket.emit('lobby:error', 'Lobby not found');
+        console.log(`[Billiards] lobby:join failed | not found | lobby=${lobbyId}`);
         return;
       }
       if (lobby.gameStarted) {
         socket.emit('lobby:error', 'Game already in progress');
+        console.log(`[Billiards] lobby:join failed | already started | lobby=${lobbyId}`);
         return;
       }
       if (lobby.playerSocketIds.length >= 2) {
         socket.emit('lobby:error', 'Lobby is full');
+        console.log(`[Billiards] lobby:join failed | full | lobby=${lobbyId}`);
         return;
       }
       if (lobby.playerSocketIds.includes(socket.id)) {
         socket.emit('lobby:error', 'Already in this lobby');
+        console.log(`[Billiards] lobby:join failed | duplicate socket | lobby=${lobbyId}`);
         return;
       }
 
@@ -173,6 +182,7 @@ export function initBilliardsNamespace(io: Server): void {
     socket.on('lobby:leave', () => {
       const lobby = findLobbyForSocket(socket.id);
       if (!lobby || lobby.gameStarted) return;
+      console.log(`[Billiards] lobby:leave | lobby=${lobby.id} user=${authed.user.username}`);
 
       removePlayerFromLobby(lobby, socket.id, authed.user.id);
       socket.leave(lobby.id);
@@ -189,6 +199,7 @@ export function initBilliardsNamespace(io: Server): void {
     socket.on('game:start-request', async () => {
       const lobby = findLobbyForSocket(socket.id);
       if (!lobby || lobby.playerSocketIds.length < 2 || lobby.gameStarted) return;
+      console.log(`[Billiards] game:start-request | lobby=${lobby.id} user=${authed.user.username}`);
 
       if (!lobby.readyUserIds.includes(authed.user.id)) {
         lobby.readyUserIds.push(authed.user.id);
@@ -334,6 +345,7 @@ export function initBilliardsNamespace(io: Server): void {
 
     socket.on('disconnecting', async () => {
       const lobby = findLobbyForSocket(socket.id);
+      console.log(`[Billiards] Socket disconnecting | user=${authed.user.username} socket=${socket.id} lobby=${lobby?.id ?? 'none'}`);
       if (!lobby) return;
 
       if (lobby.gameStarted) {

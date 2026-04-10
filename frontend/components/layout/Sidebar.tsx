@@ -36,16 +36,6 @@ const linkItems = [
       </svg>
     ),
   },
-  {
-    href: '/games',
-    label: 'Games',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="2" y="6" width="20" height="12" rx="2" />
-        <path d="M6 12h4M8 10v4M15 11h2M15 13h2" />
-      </svg>
-    ),
-  },
 ];
 
 function SidebarShell({ children }: { children: React.ReactNode }) {

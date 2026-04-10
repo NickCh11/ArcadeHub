@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import { useBilliards, type LobbyInfo } from './BilliardsContext';
 
 export function GameLobbyBrowser() {
-  const { openLobbies, lobbyError, clearLobbyError, createLobby, joinLobby } = useBilliards();
+  const { socket, openLobbies, lobbyError, clearLobbyError, createLobby, joinLobby } = useBilliards();
+  const isConnected = !!socket?.connected;
 
   // Auto-dismiss error after 4s
   useEffect(() => {
@@ -53,30 +54,35 @@ export function GameLobbyBrowser() {
 
         <button
           onClick={createLobby}
+          disabled={!isConnected}
           style={{
             padding: '10px 22px',
             borderRadius: 8,
             border: 'none',
-            background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
-            color: '#fff',
+            background: isConnected
+              ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)'
+              : 'rgba(139,92,246,0.12)',
+            color: isConnected ? '#fff' : 'var(--color-text-muted)',
             fontFamily: 'var(--font-display)',
             fontWeight: 700,
             fontSize: 13,
             letterSpacing: '0.1em',
-            cursor: 'pointer',
-            boxShadow: '0 0 16px rgba(139,92,246,0.35)',
+            cursor: isConnected ? 'pointer' : 'default',
+            boxShadow: isConnected ? '0 0 16px rgba(139,92,246,0.35)' : 'none',
             transition: 'box-shadow 0.15s, transform 0.1s',
           }}
           onMouseEnter={(e) => {
+            if (!isConnected) return;
             (e.currentTarget as HTMLElement).style.boxShadow = '0 0 24px rgba(139,92,246,0.6)';
             (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
           }}
           onMouseLeave={(e) => {
+            if (!isConnected) return;
             (e.currentTarget as HTMLElement).style.boxShadow = '0 0 16px rgba(139,92,246,0.35)';
             (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
           }}
         >
-          + CREATE GAME
+          {isConnected ? '+ CREATE GAME' : 'CONNECTING...'}
         </button>
       </div>
 
@@ -94,6 +100,7 @@ export function GameLobbyBrowser() {
           }}
         >
           {lobbyError}
+          {!isConnected ? ' The game server connection is still initializing.' : ''}
         </div>
       )}
 
