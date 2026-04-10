@@ -84,7 +84,10 @@ export function BilliardsProvider({ children }: { children: ReactNode }) {
     const s = io(`${backendUrl}/billiards`, {
       auth: { token },
       transports: ['websocket', 'polling'],
+      autoConnect: false,
     });
+
+    s.connect();
 
     s.on('lobby:list', (lobbies: LobbyInfo[]) => {
       setOpenLobbies(
@@ -114,6 +117,11 @@ export function BilliardsProvider({ children }: { children: ReactNode }) {
 
     s.on('lobby:error', (msg: string) => {
       setLobbyError(msg);
+    });
+
+    s.on('connect_error', (error) => {
+      console.error('[Billiards] connect_error', error);
+      setLobbyError(error.message || 'Could not connect to the game server');
     });
 
     s.on('roleAssignement', (id: string, num: number) => {
@@ -166,10 +174,18 @@ export function BilliardsProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const createLobby = useCallback(() => {
+    if (!socket?.connected) {
+      setLobbyError('Game server is still connecting. Try again in a moment.');
+      return;
+    }
     socket?.emit('lobby:create');
   }, [socket]);
 
   const joinLobby = useCallback((id: string) => {
+    if (!socket?.connected) {
+      setLobbyError('Game server is still connecting. Try again in a moment.');
+      return;
+    }
     socket?.emit('lobby:join', { lobbyId: id });
   }, [socket]);
 
@@ -185,16 +201,24 @@ export function BilliardsProvider({ children }: { children: ReactNode }) {
   }, [socket]);
 
   const requestGameStart = useCallback(() => {
+    if (!socket?.connected) {
+      setLobbyError('Game server is still connecting. Try again in a moment.');
+      return;
+    }
     socket?.emit('game:start-request');
   }, [socket]);
 
   const endGame = useCallback(() => {
+    if (!socket?.connected) {
+      setLobbyError('Game server is disconnected.');
+      return;
+    }
     socket?.emit('game:end');
   }, [socket]);
 
   const sendChatMessage = useCallback((text: string) => {
     const lobby = currentLobbyRef.current;
-    if (!lobby || !text.trim()) return;
+    if (!lobby || !text.trim() || !socket?.connected) return;
     socket?.emit('game:chat:send', { lobbyId: lobby.id, text });
   }, [socket]);
 
