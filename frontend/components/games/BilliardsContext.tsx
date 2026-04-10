@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { getBackendUrl } from '@/lib/publicUrl';
 
 export interface LobbyInfo {
   id: string;
@@ -79,7 +80,7 @@ export function BilliardsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token) return;
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+    const backendUrl = getBackendUrl();
     const s = io(`${backendUrl}/billiards`, {
       auth: { token },
       transports: ['websocket', 'polling'],
