@@ -6,10 +6,22 @@ import { usePathname } from 'next/navigation';
 import { useChatOverlay } from '@/components/chat/ChatOverlayContext';
 import { useDMOverlay } from '@/components/chat/DMOverlayContext';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useGamesOverlay } from '@/components/games/GamesOverlayContext';
 
 const CHAT_ICON = (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+const PLAY_ICON = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="3" />
+    <line x1="12" y1="2" x2="12" y2="5" />
+    <line x1="12" y1="19" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="5" y2="12" />
+    <line x1="19" y1="12" x2="22" y2="12" />
   </svg>
 );
 
@@ -58,6 +70,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, toggle } = useChatOverlay();
   const { isOpen: isDMOpen, toggle: toggleDM } = useDMOverlay();
+  const { isLibraryOpen, toggleLibrary } = useGamesOverlay();
   const { user, resolved } = useAuth();
   const [mounted, setMounted] = useState(false);
 
@@ -105,6 +118,17 @@ export function Sidebar() {
             <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-.997 16 16 0 0 0 7-1.383 16 16 0 0 0 7 1.384 1 1 0 0 1 1 .996z" />
           </svg>
           <span style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.05em' }}>DMS</span>
+        </button>
+
+        <button
+          title="Game Library"
+          className="relative w-full flex flex-col items-center gap-1 py-2 rounded-xl transition-all duration-200"
+          style={{ color: '#3d3d58', background: 'transparent', border: 'none', cursor: 'not-allowed', opacity: 0.55 }}
+          aria-disabled="true"
+          tabIndex={-1}
+        >
+          {PLAY_ICON}
+          <span style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.05em' }}>PLAY</span>
         </button>
       </SidebarShell>
     );
@@ -203,6 +227,35 @@ export function Sidebar() {
           <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-.997 16 16 0 0 0 7-1.383 16 16 0 0 0 7 1.384 1 1 0 0 1 1 .996z" />
         </svg>
         <span style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.05em' }}>DMS</span>
+      </button>
+
+      <button
+        onClick={() => {
+          if (canUseRealtime) toggleLibrary();
+        }}
+        title="Game Library"
+        className="relative w-full flex flex-col items-center gap-1 py-2 rounded-xl transition-all duration-200"
+        style={{
+          color: isLibraryOpen ? '#8b5cf6' : (canUseRealtime ? '#5a5a80' : '#3d3d58'),
+          background: isLibraryOpen ? 'rgba(139,92,246,0.12)' : 'transparent',
+          border: 'none',
+          cursor: canUseRealtime ? 'pointer' : 'not-allowed',
+          opacity: canUseRealtime ? 1 : 0.55,
+        }}
+        onMouseEnter={(e) => {
+          if (canUseRealtime && !isLibraryOpen) (e.currentTarget as HTMLElement).style.color = '#9d9db8';
+        }}
+        onMouseLeave={(e) => {
+          if (canUseRealtime && !isLibraryOpen) (e.currentTarget as HTMLElement).style.color = '#5a5a80';
+        }}
+        aria-disabled={!canUseRealtime}
+        tabIndex={!canUseRealtime ? -1 : 0}
+      >
+        {isLibraryOpen && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-r" style={{ background: '#8b5cf6' }} />
+        )}
+        {PLAY_ICON}
+        <span style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.05em' }}>PLAY</span>
       </button>
     </SidebarShell>
   );

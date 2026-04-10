@@ -6,6 +6,9 @@ import { ChatOverlay } from './ChatOverlay';
 import { DMOverlayProvider } from './DMOverlayContext';
 import { DMOverlay } from './DMOverlay';
 import { AuthProvider } from '@/components/auth/AuthProvider';
+import { GamesOverlayProvider } from '@/components/games/GamesOverlayContext';
+import { GamesOverlay } from '@/components/games/GamesOverlay';
+import { GamesPanel } from '@/components/games/GamesPanel';
 
 export function OverlayProviders({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -21,13 +24,17 @@ export function OverlayProviders({ children }: { children: ReactNode }) {
     <AuthProvider>
       <ChatOverlayProvider>
         <DMOverlayProvider>
-          {children}
-          {mounted ? (
-            <>
-              <ChatOverlay />
-              <DMOverlay />
-            </>
-          ) : null}
+          <GamesOverlayProvider>
+            {children}
+            {mounted ? (
+              <>
+                <ChatOverlay />
+                <DMOverlay />
+                <GamesOverlay />
+                <GamesPanel />
+              </>
+            ) : null}
+          </GamesOverlayProvider>
         </DMOverlayProvider>
       </ChatOverlayProvider>
     </AuthProvider>
