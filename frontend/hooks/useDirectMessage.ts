@@ -24,8 +24,10 @@ export function useDirectMessage(
 ) {
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  // Incrementing this triggers a history reload (used on reconnect)
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // Load DM history
+  // Load DM history (re-runs when conversation changes OR on reconnect)
   useEffect(() => {
     if (!otherUserId || !userId || !token) return;
     let cancelled = false;
@@ -64,7 +66,7 @@ export function useDirectMessage(
                 id: m.id,
                 senderId: m.sender_id,
                 senderName: '',
-                plaintext: '[Could not decrypt]',
+                plaintext: '[Could not decrypt — message was sent from a different device or browser]',
                 createdAt: m.created_at,
               } as DecryptedMessage;
             }
@@ -80,7 +82,15 @@ export function useDirectMessage(
 
     loadHistory();
     return () => { cancelled = true; };
-  }, [otherUserId, userId, token]);
+  }, [otherUserId, userId, token, reloadKey]);
+
+  // Reload history when socket reconnects (catch messages sent while we were offline)
+  useEffect(() => {
+    if (!socket) return;
+    const onReconnect = () => setReloadKey((k) => k + 1);
+    socket.on('connect', onReconnect);
+    return () => { socket.off('connect', onReconnect); };
+  }, [socket]);
 
   // Listen for incoming DMs
   useEffect(() => {

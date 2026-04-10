@@ -11,7 +11,7 @@ import { getBackendUrl } from '@/lib/publicUrl';
 import { SOCKET_EVENTS } from '@/types/events';
 import type { Socket } from 'socket.io-client';
 import type { UserProfile } from '@/types';
-import type { NewDMPayload } from '@/types/events';
+import type { NewDMPayload, PresenceUpdatePayload } from '@/types/events';
 
 const BACKEND = getBackendUrl();
 const WINDOW_W = 760;
@@ -352,6 +352,21 @@ export function DMOverlay() {
     socket.on(SOCKET_EVENTS.NEW_DM, handler);
     return () => { socket.off(SOCKET_EVENTS.NEW_DM, handler); };
   }, [socket, userId, currentDMUserId, currentDMUser, recentUsers, searchResults, open]);
+
+  // Live presence updates — keep status indicators current without polling
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (payload: PresenceUpdatePayload) => {
+      setCurrentDMUser((prev) =>
+        prev && prev.id === payload.userId ? { ...prev, status: payload.status } : prev
+      );
+      setRecentUsers((prev) =>
+        prev.map((u) => u.id === payload.userId ? { ...u, status: payload.status } : u)
+      );
+    };
+    socket.on(SOCKET_EVENTS.PRESENCE_UPDATE, handler);
+    return () => { socket.off(SOCKET_EVENTS.PRESENCE_UPDATE, handler); };
+  }, [socket]);
 
   // Drag
   function handleTitleMouseDown(e: React.MouseEvent) {

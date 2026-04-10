@@ -6,12 +6,21 @@ import { getBackendUrl } from '@/lib/publicUrl';
 let socket: Socket | null = null;
 
 export function getSocket(token?: string): Socket {
-  if (!socket || !socket.connected) {
+  if (!socket) {
+    // Only create a new socket if we have none at all.
+    // Never replace a socket just because connected === false — it may be
+    // in socket.io's own reconnection backoff window, and replacing it
+    // would orphan the old socket, cause a spurious disconnect event,
+    // and flash the user as offline.
     socket = io(getBackendUrl(), {
       auth: { token },
       transports: ['websocket', 'polling'],
       autoConnect: false,
     });
+  } else if (token) {
+    // Always keep the auth token current so the next reconnect uses the
+    // latest session token.
+    socket.auth = { token };
   }
   return socket;
 }

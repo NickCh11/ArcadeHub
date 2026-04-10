@@ -57,7 +57,6 @@ interface RoomMember {
 function MembersPanel({ members }: { members: RoomMember[] }) {
   const online = members.filter((m) => m.status === 'online');
   const away = members.filter((m) => m.status === 'away');
-  const offline = members.filter((m) => m.status === 'offline');
 
   const statusDot = (status: RoomMember['status']) => {
     const color = status === 'online' ? '#22c55e' : status === 'away' ? '#f59e0b' : '#4b5563';
@@ -108,7 +107,6 @@ function MembersPanel({ members }: { members: RoomMember[] }) {
       )}
       {renderGroup('ONLINE', online)}
       {renderGroup('AWAY', away)}
-      {renderGroup('OFFLINE', offline)}
     </div>
   );
 }
@@ -246,11 +244,17 @@ function RoomView({ socket, room, userId, token, username, showMembers = true }:
     };
   }, [socket, room.id]);
 
-  // Presence updates
+  // Presence updates — remove offline users entirely; update online/away status
   useEffect(() => {
     if (!socket) return;
     const handler = (payload: PresenceUpdatePayload) => {
-      setMembers((prev) => prev.map((m) => m.user_id === payload.userId ? { ...m, status: payload.status } : m));
+      if (payload.status === 'offline') {
+        setMembers((prev) => prev.filter((m) => m.user_id !== payload.userId));
+      } else {
+        setMembers((prev) => prev.map((m) =>
+          m.user_id === payload.userId ? { ...m, status: payload.status } : m
+        ));
+      }
     };
     socket.on(SOCKET_EVENTS.PRESENCE_UPDATE, handler);
     return () => { socket.off(SOCKET_EVENTS.PRESENCE_UPDATE, handler); };

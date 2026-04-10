@@ -41,6 +41,16 @@ export function initSocket(io: Server): void {
       io.emit(SOCKET_EVENTS.PRESENCE_UPDATE, { userId, status });
     });
 
+    // Disconnecting — socket.rooms is still populated here (cleared before 'disconnect')
+    // Broadcast USER_LEFT_ROOM to every public room this socket was in so that
+    // members panels update immediately without waiting for a client-side LEAVE_ROOM.
+    socket.on('disconnecting', () => {
+      for (const roomId of socket.rooms) {
+        if (roomId === socket.id || roomId.startsWith('user:')) continue;
+        io.to(roomId).emit(SOCKET_EVENTS.USER_LEFT_ROOM, { roomId, userId });
+      }
+    });
+
     // Disconnect
     socket.on('disconnect', async () => {
       console.log(`[Socket] User disconnected: ${authedSocket.user.username}`);

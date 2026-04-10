@@ -1,6 +1,8 @@
 import redis from './client';
 
-const PRESENCE_TTL = 35; // seconds — clients ping every 30s
+// 90s gives plenty of headroom: clients ping every 25s but background-tab
+// timer throttling can delay that interval to 60s+ in some browsers.
+const PRESENCE_TTL = 90; // seconds
 
 export type PresenceStatus = 'online' | 'away' | 'offline';
 
