@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { BASE_WINDOW_Z, bringToFront } from '@/lib/windowZIndex';
 import { connectSocket } from '@/lib/socket';
 import { useChatOverlay } from './ChatOverlayContext';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -456,6 +457,7 @@ export function ChatOverlay() {
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [minimized, setMinimized] = useState(false);
   const [pos, setPos] = useState({ x: -1, y: -1 });
+  const [zIndex, setZIndex] = useState(BASE_WINDOW_Z);
   const posInitialized = useRef(false);
   const dragStart = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
 
@@ -580,13 +582,15 @@ export function ChatOverlay() {
   }
 
   if (!resolved || !user || !token) return null;
-  if (pos.x < 0) return <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9997 }} />;
+  if (pos.x < 0) return <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex }} />;
 
   const windowHeight = minimized ? TITLEBAR_H : overlayH;
 
   return (
-    <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, width: overlayW, height: windowHeight, zIndex: 9997,
+    <div
+      onPointerDown={() => setZIndex(bringToFront())}
+      style={{
+      position: 'fixed', left: pos.x, top: pos.y, width: overlayW, height: windowHeight, zIndex,
       borderRadius: isMobile ? 0 : 16, overflow: 'hidden',
       background: 'rgba(10,10,24,0.93)', backdropFilter: 'blur(28px)',
       border: '1px solid rgba(139,92,246,0.18)',

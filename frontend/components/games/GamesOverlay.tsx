@@ -3,11 +3,13 @@
 import { useRef, useState, useCallback, type PointerEvent } from 'react';
 import { useGamesOverlay } from './GamesOverlayContext';
 import { GAMES } from './gamesConfig';
+import { BASE_WINDOW_Z, bringToFront } from '@/lib/windowZIndex';
 
 export function GamesOverlay() {
   const { isLibraryOpen, closeLibrary, launchGame } = useGamesOverlay();
 
   const [pos, setPos] = useState({ x: 80, y: 80 });
+  const [zIndex, setZIndex] = useState(BASE_WINDOW_Z);
   const dragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
 
@@ -30,12 +32,13 @@ export function GamesOverlay() {
 
   return (
     <div
+      onPointerDown={() => setZIndex(bringToFront())}
       style={{
         position: 'fixed',
         left: pos.x,
         top: pos.y,
         width: 700,
-        zIndex: 50,
+        zIndex,
         display: 'flex',
         flexDirection: 'column',
         borderRadius: 14,

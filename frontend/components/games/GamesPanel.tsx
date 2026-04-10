@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, type PointerEvent } from 'react';
+import { BASE_WINDOW_Z, bringToFront } from '@/lib/windowZIndex';
 import { useGamesOverlay } from './GamesOverlayContext';
 import { BilliardsGame } from './BilliardsGame';
 import { BilliardsProvider, useBilliards } from './BilliardsContext';
@@ -19,6 +20,7 @@ function BilliardsHub({ onClose }: { onClose(): void }) {
   const { phase, showChat, currentLobby, leaveLobby, endGame } = useBilliards();
 
   const [pos, setPos] = useState({ x: 120, y: 60 });
+  const [zIndex, setZIndex] = useState(BASE_WINDOW_Z);
   const dragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
 
@@ -57,12 +59,15 @@ function BilliardsHub({ onClose }: { onClose(): void }) {
   return (
     <>
       <div
+        onPointerDown={() => setZIndex(bringToFront())}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
         style={{
           position: 'fixed',
           left: pos.x,
           top: pos.y,
           width: totalWidth,
-          zIndex: 51,
+          zIndex,
           display: 'flex',
           borderRadius: 14,
           overflow: 'hidden',
@@ -70,8 +75,6 @@ function BilliardsHub({ onClose }: { onClose(): void }) {
           background: 'transparent',
           userSelect: 'none',
         }}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
       >
         <div
           style={{
